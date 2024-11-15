@@ -40,8 +40,8 @@ status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
 data_fetch_interval = 40  # 15 minutes for data fetching
-status_change_interval = 15  # 10 seconds for status change
-discord_update_interval = 15  # 40 seconds for Discord updates
+status_change_interval = 17  # 10 seconds for status change
+discord_update_interval = 17  # 40 seconds for Discord updates
 
 update_in_progress = False  # Flag to track if an update is in progress
 
