@@ -47,22 +47,23 @@ update_in_progress = False  # Flag to track if an update is in progress
 
 async def utility_run():
     global vers, status_options
+    latestver_url = 'http://subspacethingy.ifhya.com/info'
+    constants_names = ["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
+
     while True:
         try:
             # Fetch version data
             async with aiohttp.ClientSession() as session:
-                async with session.get('http://subspacethingy.ifhya.com/info') as response:
+                async with session.get(latestver_url) as response:
                     data = await response.json()
                     vers = data.get('latestver', 'Unknown')
 
             # Fetch constants from the node
-            constants_response = await constants_lib.pull_constants(
-                constant_names=["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
-            )
+            constants_response = await constants_lib.pull_constants(constant_names=constants_names)
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
-            #totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)
-            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50)
-            
+
+            # Calculate required data
+            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
             totPledgedPib = f'{totPledged:.2f}'
 
             blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
@@ -71,26 +72,17 @@ async def utility_run():
             blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
 
             pledgedPercent = str(round(Decimal(totPledgedPib) * 100 / 600, 1))
-            pledgeText = str()
-            pledgeEnd = str()
-            
-            if totPledged > goal:
-                pledgeText = "🎉 Hit Goal!"
-                pledgeEnd = " 🚀"    
-            else:
-                pledgeText = "Total Pledged"
-            
-    
-            # Update status options
+
+            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")  
             status_options = [
-                ("Latest Release", f'🖥️  {vers}'),
-                ("History Size", f"📜 {blockchain_history_size_gib:.3f} GiB"),
-                ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
-                (pledgeText, f"💾 {totPledgedPib}/{goal}pb {pledgeEnd} ({pledgedPercent}%)") ,
+                ("Latest Release", f'  {vers}'),
+                ("History Size", f" {blockchain_history_size_gib:.3f} GiB"),
+                ("Block Height", f" #{blockHeight}" if blockHeight else "Unavailable"),
+                (pledgeText, f" {totPledgedPib}/{goal}pb {pledgeEnd} ({pledgedPercent}%)") ,
             ]
 
             if testnet:
-                status_options.insert(0, ('Monitoring', '👁️  Testnet'))
+                status_options.insert(0, ('Monitoring', '  Testnet'))
 
         except Exception as e:
             logging.error(f"Error fetching data: {e}")

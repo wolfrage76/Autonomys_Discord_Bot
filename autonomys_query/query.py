@@ -25,23 +25,22 @@ class SubstrateConstantsLibrary:
         """
         Retry fetching the chain head with a delay if SSL errors occur.
         """
+        chain_head = None
         for attempt in range(retries):
             try:
                 chain_head = self.substrate.get_chain_head()
-                block = self.substrate.get_block(chain_head)
-                return block['header']['number']
+                break
             except ssl.SSLEOFError:
-                if attempt < retries - 1:
-                    print("SSL Error, retrying...")
-                    await asyncio.sleep(delay)
-                else:
+                if attempt == retries - 1:
                     raise Exception("Failed to fetch chain head after multiple attempts")
             except Exception as e:
-                if attempt < retries - 1:
-                    print(f"Error occurred: {e}, retrying...")
-                    await asyncio.sleep(delay)
-                else:
+                if attempt == retries - 1:
                     raise Exception(f"Failed to fetch chain head after multiple attempts: {e}")
+            await asyncio.sleep(delay)
+        if chain_head is None:
+            raise Exception("Chain head is None, this should never happen")
+        block = self.substrate.get_block(chain_head)
+        return block['header']['number']
 
     def _load_constants_metadata(self):
         """
@@ -84,27 +83,24 @@ class SubstrateConstantsLibrary:
         result = []
         ignored_constants = []
 
-        # Decide which constants to query
-        if constant_names and "all" in constant_names:
-            constants_to_query = self.constants_metadata
-        else:
-            constants_to_query = [item for item in self.constants_metadata if item["name"] in constant_names]
+        # Determine which constants to query
+        constants_to_query = (
+            self.constants_metadata if constant_names and "all" in constant_names
+            else [item for item in self.constants_metadata if item["name"] in constant_names]
+        )
 
         # Query each constant and store in the result
         for item in constants_to_query:
-            module = item["module"]
-            name = item["name"]
-
+            module, name = item["module"], item["name"]
             try:
                 constant_value = self.substrate.get_constant(module, name).value
                 result.append({name: constant_value})
             except Exception:
                 ignored_constants.append(name)
-
         try:
             blockchain_history_size = self.substrate.get_constant('TransactionFees', 'BlockchainHistorySize').value
             result.append({'BlockchainHistorySize': blockchain_history_size})
         except Exception:
-            pass  # If error occurs while fetching this constant, just skip
+            pass 
 
         return {"result": result, "ignored_constants": ignored_constants}
