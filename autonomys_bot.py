@@ -39,9 +39,9 @@ vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
-data_fetch_interval = 40  # 15 minutes for data fetching
-status_change_interval = 17  # 10 seconds for status change
-discord_update_interval = 17  # 40 seconds for Discord updates
+data_fetch_interval = 40  # 40 minutes for data fetching
+status_change_interval = 17  # 17 seconds for status change -- trying to avoid rate limiting
+discord_update_interval = 17  # 17  seconds for Discord updates-- trying to avoid rate limiting
 
 update_in_progress = False  # Flag to track if an update is in progress
 
@@ -75,14 +75,14 @@ async def utility_run():
 
             pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")  
             status_options = [
-                ("Latest Release", f'  {vers}'),
-                ("History Size", f" {blockchain_history_size_gib:.3f} GiB"),
-                ("Block Height", f" #{blockHeight}" if blockHeight else "Unavailable"),
-                (pledgeText, f" {totPledgedPib}/{goal}pb {pledgeEnd} ({pledgedPercent}%)") ,
+                ("Latest Release", f'🖥️  {vers}'),
+                ("History Size", f"📜 {blockchain_history_size_gib:.3f} GiB"),
+                ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
+                (pledgeText, f"💾 {totPledgedPib}/{goal}pb {pledgeEnd} ({pledgedPercent}%)") ,
             ]
 
             if testnet:
-                status_options.insert(0, ('Monitoring', '  Testnet'))
+                status_options.insert(0, ('👁️ Monitoring', '  Testnet'))
 
         except Exception as e:
             logging.error(f"Error fetching data: {e}")
