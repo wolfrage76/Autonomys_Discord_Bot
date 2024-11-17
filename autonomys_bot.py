@@ -63,22 +63,26 @@ async def utility_run():
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
 
             # Calculate required data
-            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
-            totPledgedPib = f'{totPledged:.2f}'
+#            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
+            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15) #  In PB
+
+            totPledgedPib = f'{totPledged:.3f}'
 
             blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
-            blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3)
+            # blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3) #  GiB
+            blockchain_history_size_gb = blockchain_history_size_bytes / (10 ** 9)  # GB
+
 
             blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
 
-            pledgedPercent = str(round(Decimal(totPledgedPib) * 100 / 600, 1))
+            pledgedPercent = str(round(Decimal(totPledgedPib) * 100 / 600, 2))
 
             pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")  
             status_options = [
                 ("Latest Release", f'🖥️  {vers}'),
-                ("History Size", f"📜 {blockchain_history_size_gib:.3f} GiB"),
+                ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"), # Change to match GB/GiB above
                 ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
-                (pledgeText, f"💾 {totPledgedPib}/{goal}pb {pledgeEnd} ({pledgedPercent}%)") ,
+                (pledgeText, f"💾 {totPledgedPib}/{goal}PB {pledgeEnd} ({pledgedPercent}%)") , # Change to match PB/PiB above
             ]
 
             if testnet:
