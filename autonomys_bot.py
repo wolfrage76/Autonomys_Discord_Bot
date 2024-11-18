@@ -4,11 +4,16 @@ import asyncio
 import os
 import logging
 import ssl
+import time
 
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 from autonomys_query.query import SubstrateConstantsLibrary
 from decimal import Decimal
+from collections import deque
+
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +27,8 @@ else:
 
 load_dotenv()
 
+# Initialize a deque to store pledged amounts with timestamps
+pledged_history = deque(maxlen=100)  # Adjust maxlen as needed
 # Instantiate the SubstrateConstantsLibrary
 constants_lib = SubstrateConstantsLibrary(nodeUrl)
 
@@ -64,9 +71,9 @@ async def utility_run():
 
             # Calculate required data
 #            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
-            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15) #  In PB
+            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  #  In PB
 
-            totPledgedPib = f'{totPledged:.3f}'
+            totPledgedAmt = f'{totPledged:.3f}'
 
             blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
             # blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3) #  GiB
@@ -75,14 +82,15 @@ async def utility_run():
 
             blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
 
-            pledgedPercent = str(round(Decimal(totPledgedPib) * 100 / 600, 2))
+            pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 600, 2)
+            hasChanged = check_pledged_change()
 
             pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")  
             status_options = [
                 ("Latest Release", f'🖥️  {vers}'),
                 ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"), # Change to match GB/GiB above
                 ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
-                (pledgeText, f"💾 {totPledgedPib}/{goal}PB {pledgeEnd} ({pledgedPercent}%)") , # Change to match PB/PiB above
+                (pledgeText, f"💾 {totPledgedAmt}PB {pledgeEnd} ({pledgedPercent}%) {hasChanged}") , # Change to match PB/PiB above
             ]
 
             if testnet:
@@ -92,6 +100,43 @@ async def utility_run():
             logging.error(f"Error fetching data: {e}")
 
         await asyncio.sleep(data_fetch_interval)
+
+def check_pledged_change():
+    current_time = time.time()
+    
+    # Ensure there's at least one entry in the history
+    if not pledged_history:
+        return '↕️'  # No data yet
+
+    # Get the current pledged amount (rounded to 2 digits)
+    current_totPledged = round(pledged_history[-1][1], 2)
+
+    # Calculate the timestamp for one hour ago
+    one_hour_ago = current_time - 3600  # 3600 seconds in an hour
+
+    # Initialize variable to store the pledged amount from one hour ago
+    one_hour_ago_value = None
+
+    # Iterate over the history to find the pledged amount from one hour ago
+    for timestamp, value in reversed(pledged_history):
+        if timestamp <= one_hour_ago:
+            one_hour_ago_value = value
+            break
+
+    # If there's no data from one hour ago
+    if one_hour_ago_value is None:
+        return '↕️'  # Not enough data to determine change
+
+    one_hour_ago_value = round(one_hour_ago_value, 2)
+
+    # Compare the current pledged amount with the one from an hour ago
+    if current_totPledged > one_hour_ago_value:
+        return '⬆️'
+    elif current_totPledged < one_hour_ago_value:
+        return '⬇️'
+    else:
+        return '↕️'
+
 
 @bot.event
 async def on_ready():
