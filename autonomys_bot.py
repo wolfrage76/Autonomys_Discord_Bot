@@ -5,6 +5,8 @@ import os
 import logging
 import ssl
 import time
+import pickle
+from decimal import Decimal
 
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
@@ -46,16 +48,131 @@ vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
-data_fetch_interval = 20  #
+data_fetch_interval = 60  #
 status_change_interval = 17  # 17 seconds for status change -- trying to avoid rate limiting
 discord_update_interval = 17  # 17  seconds for Discord updates-- trying to avoid rate limiting
 
 update_in_progress = False  # Flag to track if an update is in progress
 
+
+def track_pledged_space_growth(totPledged, data_file='pledged_history.pkl', display_in_tb=True):
+    global pledged_history
+    current_time = time.time()
+
+    # Define maxlen based on data retention needs (e.g., 30 days)
+    max_data_points = 43200  # 30 days × 1,440 data points/day
+
+    # Load existing data if the file exists
+    if os.path.exists(data_file):
+        try:
+            with open(data_file, 'rb') as f:
+                loaded_data = pickle.load(f)
+                # Re-initialize the deque with maxlen and extend it with loaded data
+                pledged_history = deque(loaded_data, maxlen=max_data_points)
+                logging.info(f"Loaded {len(pledged_history)} data points.")
+        except Exception as e:
+            logging.error(f"Error loading pledged data: {e}")
+            pledged_history = deque(maxlen=max_data_points)
+    else:
+        pledged_history = deque(maxlen=max_data_points)
+        logging.info("Initializing pledged data history.")
+
+    # Append the current pledged amount
+    pledged_history.append((current_time, float(totPledged)))
+    logging.info(f"Appended new data point. Total data points: {len(pledged_history)}")
+
+    # Save the updated data back to the file
+    try:
+        with open(data_file, 'wb') as f:
+            pickle.dump(pledged_history, f)
+    except Exception as e:
+        logging.error(f"Error saving pledged data: {e}")
+
+    # Time periods in seconds
+    periods = {
+        '1h': 1 * 3600,
+        '12h': 12 * 3600,
+        '1d': 24 * 3600,
+        '3d': 3 * 24 * 3600,
+        '7d': 7 * 24 * 3600,
+        '30d': 30 * 24 * 3600,
+    }
+
+    growth = {}
+    if len(pledged_history) == 1:
+        # If this is the initial data point, we cannot calculate growth
+        for period_name in periods:
+            growth[period_name] = "N/A"  # Not enough data
+    else:
+        for period_name, period_seconds in periods.items():
+            # Initialize variables
+            past_value = None
+
+            # Calculate the timestamp for the period ago
+            period_ago = current_time - period_seconds
+
+            # Find the value from the specified period ago
+            for timestamp, value in reversed(pledged_history):
+                if timestamp <= period_ago:
+                    past_value = value
+                    break
+
+            if past_value is not None:
+                # Calculate growth in PB
+                growth_pb = float(totPledged) - past_value
+
+                if display_in_tb:
+                    # Convert growth to TB (1 PB = 1000 TB)
+                    growth_value = growth_pb * 1000
+                    unit = "TB"
+                else:
+                    # Use growth in PB
+                    growth_value = growth_pb
+                    unit = "PB"
+
+                # Round to 3 decimal places
+                growth_value = round(growth_value, 3)
+                growth[period_name] = growth_value
+            else:
+                # No data from the specified period, use the earliest data point
+                earliest_timestamp, earliest_value = pledged_history[0]
+                if earliest_timestamp != current_time:
+                    elapsed_time = current_time - earliest_timestamp
+                    elapsed_hours = int(elapsed_time / 3600)
+                    if elapsed_hours < 24:
+                        period_label = f"{elapsed_hours}h"
+                    else:
+                        period_label = f"{int(elapsed_hours / 24)}d"
+
+                    # Calculate growth from the earliest data point
+                    growth_pb = float(totPledged) - earliest_value
+
+                    if display_in_tb:
+                        growth_value = growth_pb * 1000
+                        unit = "TB"
+                    else:
+                        growth_value = growth_pb
+                        unit = "PB"
+
+                    growth_value = round(growth_value, 3)
+                    # Adjust the period name to reflect actual elapsed time
+                    growth[period_name] = growth_value
+                else:
+                    growth[period_name] = "N/A"  # Not enough data
+
+    return growth
+
+
 async def utility_run():
-    global vers, status_options
+    global vers, status_options, getFetch
+    
+    getFetch = True
+    
     latestver_url = 'http://subspacethingy.ifhya.com/info'
     constants_names = ["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
+
+    # Set the display_in_tb flag here
+    display_in_tb = False  # Set to False to display in PB
 
     while True:
         try:
@@ -70,26 +187,48 @@ async def utility_run():
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
 
             # Calculate required data
-#            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
-            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  #  In PB
+            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  # In PB
+
+            # Call the tracking function
+            growth = track_pledged_space_growth(totPledged, display_in_tb=display_in_tb)
+
+            # Log the growth values
+            #logging.info(f"Pledged space growth: {growth}")
+
             totPledgedAmt = f'{totPledged:.3f}'
             pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 600, 2)
-            hasChanged = check_pledged_change()
-            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "") 
-            
+           
+            if getFetch:
+                hasChanged = check_pledged_change()
+            else:
+                pass
+           
+            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")
+
             try:
                 blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
-                # blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3) #  GiB
                 blockchain_history_size_gb = blockchain_history_size_bytes / (10 ** 9)  # GB
                 blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
             except Exception as e:
-                pass
-            
+                blockHeight = 'Unknown'
+
+            # Prepare growth data for display
+            past1d = growth.get('1d', 'N/A')
+            past3d = growth.get('3d', 'N/A')
+            past7d = growth.get('7d', 'N/A')
+            past30d = growth.get('30d', 'N/A')
+
+            # Update the unit based on display_in_tb
+            unit = "TB" if display_in_tb else "PB"
+
             status_options = [
+                ("Growth " + unit + "/day", f"1: {past1d:.2f} | 3: {past3d:.2f} | 7: {past7d:.2f}"),
+                # ("Growth", f"7d:  | 30d: {past30d:.2f}"),
                 ("Latest Release", f'🖥️  {vers}'),
-                ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"), # Change to match GB/GiB above
+                ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
                 ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
-                (pledgeText, f"💾 {totPledgedAmt}PB {pledgeEnd} ({pledgedPercent}%) {hasChanged}") , # Change to match PB/PiB above
+                (pledgeText, f"💾 {totPledgedAmt}PB {pledgeEnd} ({pledgedPercent}%) {hasChanged}"),
+
             ]
 
             if testnet:
