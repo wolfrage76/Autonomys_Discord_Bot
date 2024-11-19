@@ -69,7 +69,7 @@ def track_pledged_space_growth(totPledged, data_file='pledged_history.pkl', disp
                 loaded_data = pickle.load(f)
                 # Re-initialize the deque with maxlen and extend it with loaded data
                 pledged_history = deque(loaded_data, maxlen=max_data_points)
-                logging.info(f"Loaded {len(pledged_history)} data points.")
+                # logging.info(f"Loaded {len(pledged_history)} data points.")
         except Exception as e:
             logging.error(f"Error loading pledged data: {e}")
             pledged_history = deque(maxlen=max_data_points)
