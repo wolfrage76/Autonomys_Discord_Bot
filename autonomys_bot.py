@@ -46,7 +46,7 @@ vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
-data_fetch_interval = 40  # 40 minutes for data fetching
+data_fetch_interval = 20  #
 status_change_interval = 17  # 17 seconds for status change -- trying to avoid rate limiting
 discord_update_interval = 17  # 17  seconds for Discord updates-- trying to avoid rate limiting
 
@@ -72,20 +72,19 @@ async def utility_run():
             # Calculate required data
 #            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (2 ** 50) # In PiB
             totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  #  In PB
-
             totPledgedAmt = f'{totPledged:.3f}'
-
-            blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
-            # blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3) #  GiB
-            blockchain_history_size_gb = blockchain_history_size_bytes / (10 ** 9)  # GB
-
-
-            blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
-
             pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 600, 2)
             hasChanged = check_pledged_change()
-
-            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")  
+            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "") 
+            
+            try:
+                blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
+                # blockchain_history_size_gib = blockchain_history_size_bytes / (1024 ** 3) #  GiB
+                blockchain_history_size_gb = blockchain_history_size_bytes / (10 ** 9)  # GB
+                blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
+            except Exception as e:
+                pass
+            
             status_options = [
                 ("Latest Release", f'🖥️  {vers}'),
                 ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"), # Change to match GB/GiB above
@@ -102,6 +101,7 @@ async def utility_run():
         await asyncio.sleep(data_fetch_interval)
 
 def check_pledged_change():
+    print('Trigger utility')
     current_time = time.time()
     
     # Ensure there's at least one entry in the history
