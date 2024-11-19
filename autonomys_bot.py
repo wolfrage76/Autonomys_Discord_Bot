@@ -164,10 +164,7 @@ def track_pledged_space_growth(totPledged, data_file='pledged_history.pkl', disp
 
 
 async def utility_run():
-    global vers, status_options, getFetch
-    
-    getFetch = True
-    
+    global vers, status_options
     latestver_url = 'http://subspacethingy.ifhya.com/info'
     constants_names = ["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
 
@@ -197,12 +194,7 @@ async def utility_run():
 
             totPledgedAmt = f'{totPledged:.3f}'
             pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 600, 2)
-           
-            if getFetch:
-                hasChanged = check_pledged_change()
-            else:
-                pass
-           
+            hasChanged = check_pledged_change()
             pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")
 
             try:
