@@ -43,7 +43,7 @@ intents = discord.Intents.default()
 intents.guilds = True  # Required to fetch guilds
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-goal = 600  # Launch goal in PiB
+goal = 200  # Launch goal range in PiB
 vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
@@ -193,9 +193,9 @@ async def utility_run():
             #logging.info(f"Pledged space growth: {growth}")
 
             totPledgedAmt = f'{totPledged:.3f}'
-            pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 600, 2)
+            pledgedPercent = round(Decimal(totPledgedAmt) * 100 / 200, 2)
             hasChanged = check_pledged_change()
-            pledgeText, pledgeEnd = ("🎉 Hit Goal!", " 🚀") if totPledged > 600 else ("Total Pledged", "")
+            pledgeText, pledgeEnd = ("🎉 Hit Goal Range!", " 🚀") if totPledged > 200 else ("Total Pledged", "")
 
             try:
                 blockchain_history_size_bytes = Decimal(constants_data.get("BlockchainHistorySize", 0))
