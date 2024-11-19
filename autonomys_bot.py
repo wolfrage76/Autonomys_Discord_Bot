@@ -164,7 +164,9 @@ def track_pledged_space_growth(totPledged, data_file='pledged_history.pkl', disp
 
 
 async def utility_run():
-    global vers, status_options
+    global vers, status_options, totPledged
+    totPledged = 0
+    
     latestver_url = 'http://subspacethingy.ifhya.com/info'
     constants_names = ["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
 
@@ -173,6 +175,7 @@ async def utility_run():
 
     while True:
         try:
+            
             # Fetch version data
             async with aiohttp.ClientSession() as session:
                 async with session.get(latestver_url) as response:
@@ -184,7 +187,9 @@ async def utility_run():
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
 
             # Calculate required data
-            totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  # In PB
+            if constants_data.get("TotalSpacePledged", False):
+                totPledged = Decimal(constants_data.get("TotalSpacePledged", 0)) / (10 ** 15)  # In PB
+                
 
             # Call the tracking function
             growth = track_pledged_space_growth(totPledged, display_in_tb=display_in_tb)
@@ -222,7 +227,7 @@ async def utility_run():
                 (pledgeText, f"💾 {totPledgedAmt}PB {pledgeEnd} ({pledgedPercent}%) {hasChanged}"),
 
             ]
-
+            prevPledged = totPledgedAmt
             if testnet:
                 status_options.insert(0, ('👁️ Monitoring', '  Testnet'))
 
