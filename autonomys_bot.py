@@ -214,7 +214,7 @@ async def utility_run():
             unit = "TB" if display_in_tb else "PB"
 
             status_options = [
-                ("🌳  Growth " + unit + "/day", f"1: {past1d:.2f} | 3: {past3d:.2f} | 7: {past7d:.2f}"),
+                ("Growth " + unit + "/day", f"🌳  1: {past1d:.2f} | 3: {past3d:.2f} | 7: {past7d:.2f}"),
                 # ("Growth", f"7d:  | 30d: {past30d:.2f}"),
                 ("Latest Release", f'🖥️  {vers}'),
                 ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
@@ -232,7 +232,7 @@ async def utility_run():
         await asyncio.sleep(data_fetch_interval)
 
 def check_pledged_change():
-    print('Trigger utility')
+    #print('Trigger utility')
     current_time = time.time()
     
     # Ensure there's at least one entry in the history
@@ -267,8 +267,7 @@ def check_pledged_change():
         return '⬇️'
     else:
         return '↕️'
-
-
+    
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
