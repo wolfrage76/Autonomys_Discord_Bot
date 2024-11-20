@@ -48,7 +48,7 @@ vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
-data_fetch_interval = 60  #
+data_fetch_interval = 20  #
 status_change_interval = 17  # 17 seconds for status change -- trying to avoid rate limiting
 discord_update_interval = 17  # 17  seconds for Discord updates-- trying to avoid rate limiting
 
@@ -168,7 +168,7 @@ async def utility_run():
     totPledged = 0
     
     latestver_url = 'http://subspacethingy.ifhya.com/info'
-    constants_names = ["TotalSpacePledged", "CreditSupply", "TreasuryAccount"]
+    constants_names = [ "CreditSupply", "TreasuryAccount"]
 
     # Set the display_in_tb flag here
     display_in_tb = False  # Set to False to display in PB
@@ -184,6 +184,8 @@ async def utility_run():
 
             # Fetch constants from the node
             constants_response = await constants_lib.pull_constants(constant_names=constants_names)
+            print("\n" + str(constants_response) + "\n")
+            
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
 
             # Calculate required data

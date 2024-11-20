@@ -102,5 +102,10 @@ class SubstrateConstantsLibrary:
             result.append({'BlockchainHistorySize': blockchain_history_size})
         except Exception:
             pass 
+        try:
+            pledged = self.substrate.get_constant('TransactionFees', 'TotalSpacePledged').value
+            result.append({'TotalSpacePledged': pledged})
+        except Exception:
+            pass 
 
         return {"result": result, "ignored_constants": ignored_constants}
