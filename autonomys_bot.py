@@ -79,7 +79,7 @@ def track_pledged_space_growth(totPledged, data_file='pledged_history.pkl', disp
 
     # Append the current pledged amount
     pledged_history.append((current_time, float(totPledged)))
-    logging.info(f"Appended new data point. Total data points: {len(pledged_history)}")
+    # logging.info(f"Appended new data point. Total data points: {len(pledged_history)}")
 
     # Save the updated data back to the file
     try:
