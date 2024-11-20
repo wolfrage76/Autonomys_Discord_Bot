@@ -1,10 +1,12 @@
 import json
 import ssl
+import logging
+
 import asyncio
 from substrateinterface import SubstrateInterface
 
 class SubstrateConstantsLibrary:
-    def __init__(self, node_url="wss://rpc.mainnet.subspace.foundation/ws", constants_file="autonomys_query/constants_list.json"):
+    def __init__(self, node_url="http://rpc.mainnet.subspace.foundation/", constants_file="autonomys_query/constants_list.json"):
         self.node_url = node_url
         self.constants_file = constants_file
         self.substrate = SubstrateInterface(url=node_url)
@@ -76,12 +78,21 @@ class SubstrateConstantsLibrary:
         # Run the blocking code in a background thread to avoid blocking the event loop
         return await asyncio.to_thread(self._fetch_constants, constant_names)
 
+
     def _fetch_constants(self, constant_names=None):
         """
         This function performs the actual blocking call to fetch constants.
         """
         result = []
         ignored_constants = []
+
+        # Reinitialize the SubstrateInterface to refresh the connection
+        try:
+            self.substrate.close()
+            self.substrate = SubstrateInterface(url=self.node_url)
+            #logging.info("Reinitialized SubstrateInterface connection.")
+        except Exception as e:
+            logging.error(f"Error reinitializing SubstrateInterface: {e}")
 
         # Determine which constants to query
         constants_to_query = (
@@ -95,17 +106,18 @@ class SubstrateConstantsLibrary:
             try:
                 constant_value = self.substrate.get_constant(module, name).value
                 result.append({name: constant_value})
-            except Exception:
+            except Exception as e:
                 ignored_constants.append(name)
+                logging.error(f"Error fetching constant '{name}': {e}")
         try:
             blockchain_history_size = self.substrate.get_constant('TransactionFees', 'BlockchainHistorySize').value
             result.append({'BlockchainHistorySize': blockchain_history_size})
-        except Exception:
-            pass 
+        except Exception as e:
+            logging.error(f"Error fetching 'BlockchainHistorySize': {e}")
         try:
             pledged = self.substrate.get_constant('TransactionFees', 'TotalSpacePledged').value
             result.append({'TotalSpacePledged': pledged})
-        except Exception:
-            pass 
+        except Exception as e:
+            logging.error(f"Error fetching 'TotalSpacePledged': {e}")
 
         return {"result": result, "ignored_constants": ignored_constants}

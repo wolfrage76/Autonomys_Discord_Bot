@@ -25,7 +25,7 @@ testnet = False  # Set to True for testnet or False for mainnet
 if testnet:
     nodeUrl = "wss://rpc-0.taurus.subspace.network/ws"
 else:
-    nodeUrl = "wss://rpc.mainnet.subspace.foundation/ws"
+    nodeUrl = "http://rpc.mainnet.subspace.foundation/"
 
 load_dotenv()
 
@@ -184,7 +184,7 @@ async def utility_run():
 
             # Fetch constants from the node
             constants_response = await constants_lib.pull_constants(constant_names=constants_names)
-            print("\n" + str(constants_response) + "\n")
+            # print("\n" + str(constants_response) + "\n")
             
             constants_data = {list(item.keys())[0]: list(item.values())[0] for item in constants_response['result']}
 
