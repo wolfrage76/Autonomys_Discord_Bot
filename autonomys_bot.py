@@ -224,8 +224,8 @@ async def utility_run():
                 ("Growth " + unit + "/day", f"🌳  1: {past1d:.2f} | 3: {past3d:.2f} | 7: {past7d:.2f}"),
                 # ("Growth", f"7d:  | 30d: {past30d:.2f}"),
                 ("Latest Release", f'🖥️  {vers}'),
-                ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
-                ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"),
+                ("History Size", f"📜 {blockchain_history_size_gb if blockchain_history_size_gb < 1024 else blockchain_history_size_gb / 1024:.3f} {'GB' if blockchain_history_size_gb < 1024 else 'TB'}"),
+                ("Block Height", f"🗃️  #{blockHeight}" if blockHeight else "Unavailable"), 
                 (pledgeText, f"💾 {totPledgedAmt}PB {pledgeEnd} ({pledgedPercent}%) {hasChanged}"),
 
             ]
