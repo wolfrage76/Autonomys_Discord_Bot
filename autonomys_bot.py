@@ -49,8 +49,10 @@ status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
 data_fetch_interval = 20  #
-status_change_interval = 13  # 17 seconds for status change -- trying to avoid rate limiting
-discord_update_interval = 13  # 17  seconds for Discord updates-- trying to avoid rate limiting
+status_change_interval = 15  # 15 seconds for status change -- trying to avoid rate limiting
+discord_update_interval = 15 # 15  seconds for Discord updates-- trying to avoid rate limiting
+# TODO: separate the nickname and presense messages on separate timer from the actualrotation display.
+
 
 update_in_progress = False  # Flag to track if an update is in progress
 
