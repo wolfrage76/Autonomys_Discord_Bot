@@ -48,9 +48,9 @@ vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
 status_options = []  # Store the status options
 
-data_fetch_interval = 20  #
-status_change_interval = 15  # 15 seconds for status change -- trying to avoid rate limiting
-discord_update_interval = 15 # 15  seconds for Discord updates-- trying to avoid rate limiting
+data_fetch_interval = 20  # How often to query RPC
+status_change_interval = 17  # trying to avoid rate limiting
+discord_update_interval = 17.5 # trying to avoid rate limiting
 # TODO: separate the nickname and presense messages on separate timer from the actualrotation display.
 
 
