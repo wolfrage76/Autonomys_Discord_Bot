@@ -11,14 +11,13 @@ from query import SubstrateConstantsLibrary  # Adjust the import path if necessa
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-# profiling=False
 
 # Initialize settings
 testnet = False  # Set to True for testnet or False for mainnet
 if testnet:
-    nodeUrl = "wss://rpc-0.taurus.subspace.network/ws"
+    nodeUrl = "wss://rpc-0.tau1.subspace.network/ws"  # Update to the correct testnet URL
 else:
-    nodeUrl = "wss://rpc.mainnet.subspace.foundation/"
+    nodeUrl = "http://rpc.mainnet.subspace.foundation"
 
 load_dotenv()
 
@@ -58,7 +57,7 @@ def get_pledged_data(period_seconds):
     c = conn.cursor()
     try:
         c.execute('SELECT timestamp, pledged_space FROM pledged_history WHERE timestamp >= ? ORDER BY timestamp ASC',
-                (start_time,))
+                  (start_time,))
         data = c.fetchall()
         return data
     except sqlite3.Error as e:
@@ -105,6 +104,8 @@ data_fetch_interval = 40  # How often to query RPC
 status_change_interval = 17  # Avoiding rate limiting
 
 constants_lib = SubstrateConstantsLibrary(nodeUrl)  # Initialize SubstrateConstantsLibrary
+
+
 
 # Track pledged space growth
 def track_pledged_space_growth(totPledged, display_in_tb=True):
@@ -182,22 +183,31 @@ async def utility_run():
         while True:
             try:
                 # Fetch version data
-                vers = await fetch_version_data(session, latestver_url)
+                vers = await fetch_version_data(session, latestver_url)   
 
-                # Fetch constants from the node
-                constants_response = await asyncio.to_thread(constants_lib.fetch_constants)
-                constants_data = parse_constants_response(constants_response)
+                total_space_pledged = constants_lib.fetch_constant("TransactionFees", "TotalSpacePledged")
+                logging.info(f"TotalSpacePledged: {total_space_pledged}")
+
+                # Fetch BlockchainHistorySize
+                blockchain_history_size = constants_lib.fetch_constant("TransactionFees", "BlockchainHistorySize")
+                blockchain_history_size_gb = blockchain_history_size / (10 ** 9)
+                logging.info(f"BlockchainHistorySize: {blockchain_history_size_gb}")
+
 
                 # Calculate pledged space
-                totPledged = calculate_total_pledged(constants_data)
+                totPledged = calculate_total_pledged(total_space_pledged)
 
                 pledgeText, pledgeEnd = "Total Pledged", ""
-                blockchain_history_size_gb, blockHeight = await fetch_blockchain_details(constants_data)
+               # blockchain_history_size_gb = blockchain_history_size / (10 ** 9)
+                
+                # Fetch current block height
+                block_height = constants_lib.fetch_block_height()
+                #logging.info(f"Block Height: {block_height}")
 
                 # Generate status options
                 status_options = generate_status_options(
                     pledgeText, pledgeEnd, totPledged, vers,
-                    blockchain_history_size_gb, blockHeight, testnet, "TB" if display_in_tb else "PB"
+                    blockchain_history_size_gb, block_height, testnet, "TB" if display_in_tb else "PB"
                 )
 
                 # Prune old data
@@ -227,21 +237,12 @@ def parse_constants_response(response):
 
 def calculate_total_pledged(constants_data):
     try:
-        total_space_pledged = float(constants_data.get("TotalSpacePledged", 0))
+        total_space_pledged = float(constants_data) # constants_data.get("TotalSpacePledged", 0))
         return total_space_pledged / (10 ** 15)  # Convert to PB
     except Exception as e:
         logging.error(f"Error calculating total pledged: {e}")
         return 0
 
-async def fetch_blockchain_details(constants_data):
-    try:
-        blockchain_history_size_bytes = float(constants_data.get("BlockchainHistorySize", 0))
-        blockchain_history_size_gb = blockchain_history_size_bytes / (10 ** 9)
-        blockHeight = await asyncio.to_thread(constants_lib.load_chainhead)
-        return blockchain_history_size_gb, blockHeight
-    except Exception as e:
-        logging.error(f"Error fetching blockchain details: {e}")
-        return 0, "Unknown"
 
 def generate_status_options(pledgeText, pledgeEnd, totPledged, vers,
                             blockchain_history_size_gb, blockHeight, testnet, unit):
@@ -265,9 +266,9 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers,
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
     change_status.start()  # Start the status change task
-    logging.info("Started change_status task.")
+    #logging.info("Started change_status task.")
     bot.loop.create_task(utility_run())  # Start utility_run in the background
-    logging.info("Started utility_run task.")
+    #logging.info("Started utility_run task.")
 
 @tasks.loop(seconds=status_change_interval)
 async def change_status():
