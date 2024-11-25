@@ -183,7 +183,7 @@ async def utility_run():
         while True:
             try:
                 # Fetch version data
-                vers = await fetch_version_data(session, latestver_url)   
+                vers, acresvers = await fetch_version_data(session, latestver_url)   
 
                 total_space_pledged = constants_lib.fetch_constant("TransactionFees", "TotalSpacePledged")
                 logging.info(f"TotalSpacePledged: {total_space_pledged}")
@@ -206,7 +206,7 @@ async def utility_run():
 
                 # Generate status options
                 status_options = generate_status_options(
-                    pledgeText, pledgeEnd, totPledged, vers,
+                    pledgeText, pledgeEnd, totPledged, vers,acresvers,
                     blockchain_history_size_gb, block_height, testnet, "TB" if display_in_tb else "PB"
                 )
 
@@ -223,7 +223,7 @@ async def fetch_version_data(session, url):
     try:
         async with session.get(url) as response:
             data = await response.json()
-            return data.get('latestver', 'Unknown')
+            return data.get('latestver', 'Unknown'), data.get('latest_spaceacres_version', 'Unknown') 
     except Exception as e:
         logging.error(f"Error fetching version data: {e}")
         return "Unknown"
@@ -244,7 +244,7 @@ def calculate_total_pledged(constants_data):
         return 0
 
 
-def generate_status_options(pledgeText, pledgeEnd, totPledged, vers,
+def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
                             blockchain_history_size_gb, blockHeight, testnet, unit):
     growth = track_pledged_space_growth(totPledged, False)
     chartGrowth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
@@ -253,6 +253,7 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers,
         ("Growth PB/day", f'🌳 {chartGrowth}'),
         (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
         ("Latest Release", f"🖥️  {vers}"),
+        ("Latest Release", f"🖥️  Space Acres: {acresvers}"),
         (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
         ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
         (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
