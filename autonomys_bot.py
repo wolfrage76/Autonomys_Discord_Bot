@@ -50,21 +50,6 @@ def add_pledged_data(timestamp, pledged_space):
     finally:
         conn.close()
 
-def get_pledged_data(period_seconds):
-    current_time = time.time()
-    start_time = current_time - period_seconds
-    conn = sqlite3.connect('pledged_history.db')
-    c = conn.cursor()
-    try:
-        c.execute('SELECT timestamp, pledged_space FROM pledged_history WHERE timestamp >= ? ORDER BY timestamp ASC',
-                  (start_time,))
-        data = c.fetchall()
-        return data
-    except sqlite3.Error as e:
-        logging.error(f"Error retrieving data: {e}")
-        return []
-    finally:
-        conn.close()
 
 def prune_old_data(retention_period_seconds=2592000):  # Default: 30 days
     """
@@ -186,12 +171,12 @@ async def utility_run():
                 vers, acresvers = await fetch_version_data(session, latestver_url)   
 
                 total_space_pledged = constants_lib.fetch_constant("TransactionFees", "TotalSpacePledged")
-                logging.info(f"TotalSpacePledged: {total_space_pledged}")
+                #logging.info(f"TotalSpacePledged: {total_space_pledged}")
 
                 # Fetch BlockchainHistorySize
                 blockchain_history_size = constants_lib.fetch_constant("TransactionFees", "BlockchainHistorySize")
                 blockchain_history_size_gb = blockchain_history_size / (10 ** 9)
-                logging.info(f"BlockchainHistorySize: {blockchain_history_size_gb}")
+                #logging.info(f"BlockchainHistorySize: {blockchain_history_size_gb}")
 
 
                 # Calculate pledged space
@@ -207,7 +192,7 @@ async def utility_run():
                 # Generate status options
                 status_options = generate_status_options(
                     pledgeText, pledgeEnd, totPledged, vers,acresvers,
-                    blockchain_history_size_gb, block_height, testnet, "TB" if display_in_tb else "PB"
+                    blockchain_history_size_gb, block_height, testnet, " TB" if display_in_tb else " PB"
                 )
 
                 # Prune old data
@@ -249,14 +234,14 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
     growth = track_pledged_space_growth(totPledged, False)
     chartGrowth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
     status = [
-        (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Growth PB/day", f'🌳 {chartGrowth}'),
-        (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Latest Release", f"🖥️  {vers}"),
         ("Latest Release", f"🖥️  Space Acres: {acresvers}"),
-        (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
-        (pledgeText, f"💾 {totPledged:.3f}PB {pledgeEnd}"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Block Height", f"🗃️  #{blockHeight}" if blockHeight != "Unknown" else "Unavailable"),
     ]
     if testnet:
