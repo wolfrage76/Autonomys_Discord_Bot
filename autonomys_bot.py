@@ -234,6 +234,7 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
     growth = track_pledged_space_growth(totPledged, False)
     chartGrowth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
     status = [
+        ("Community Tools", "🪄 http://subspace.ifhya.com"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Growth PB/day", f'🌳 {chartGrowth}'),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
@@ -242,7 +243,7 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
-        ("Block Height", f"🗃️  #{blockHeight}" if blockHeight != "Unknown" else "Unavailable"),
+        ("Block Height", f"📏  #{blockHeight}" if blockHeight != "Unknown" else "Unavailable"),
     ]
     if testnet:
         status.insert(0, ('👁️ Monitoring', 'Testnet'))
