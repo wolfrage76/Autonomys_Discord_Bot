@@ -19,8 +19,8 @@ class SubstrateConstantsLibrary:
                 value = constant.value
                 substrate.close()
                 
-            gc.collect()  # Trigger garbage collection
-            return value
+                gc.collect()  # Trigger garbage collection
+                return value
         except Exception as e:
             logging.error(f"Error fetching {pallet_name}.{constant_name}: {e}")
             return None

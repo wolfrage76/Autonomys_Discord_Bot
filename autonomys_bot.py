@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 # Initialize settings
 testnet = False  # Set to True for testnet or False for mainnet
 if testnet:
-    nodeUrl = "wss://rpc-0.tau1.subspace.network/ws"  # Update to the correct testnet URL
+    nodeUrl = "http://rpc-0.tau1.subspace.network/"  # Update to the correct testnet URL
 else:
     nodeUrl = "http://rpc.mainnet.subspace.foundation"
 
@@ -262,7 +262,7 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Block Height", f"📏  #{blockHeight}" if blockHeight != "Unknown" else "Unavailable"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
-        ("Total Circulation", f"💰  {format_with_commas(total_circulation / digits)} AI3"),
+        ("In Circulation", f"💰 {format_with_commas(int(total_circulation / digits))}/1B AI3"),
         
     ]
     if testnet:
