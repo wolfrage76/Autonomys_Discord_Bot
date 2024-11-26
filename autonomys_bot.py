@@ -115,7 +115,7 @@ def track_pledged_space_growth(totPledged, display_in_tb=True):
 
     return growth
 
-def calculate_growth_for_period(period_seconds, display_in_tb):
+def calculate_growth_for_period(period_seconds, display_in_tb=False):
     """
     Calculate pledged space growth over a specific time period using SQL.
 
@@ -162,7 +162,7 @@ async def utility_run():
     totPledged = 0
 
     latestver_url = 'http://subspacethingy.ifhya.com/info'
-    display_in_tb = False  # Display growth in PB
+    display_in_tb = False  # False == Display growth in PB
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -171,6 +171,7 @@ async def utility_run():
                 vers, acresvers = await fetch_version_data(session, latestver_url)   
 
                 total_space_pledged = constants_lib.fetch_constant("TransactionFees", "TotalSpacePledged")
+                total_circulation = constants_lib.fetch_constant("TransactionFees", "CreditSupply")
                 #logging.info(f"TotalSpacePledged: {total_space_pledged}")
 
                 # Fetch BlockchainHistorySize
@@ -192,7 +193,8 @@ async def utility_run():
                 # Generate status options
                 status_options = generate_status_options(
                     pledgeText, pledgeEnd, totPledged, vers,acresvers,
-                    blockchain_history_size_gb, block_height, testnet, " TB" if display_in_tb else " PB"
+                    blockchain_history_size_gb, block_height, testnet, " TB" if display_in_tb else " PB",
+                    total_circulation,
                 )
 
                 # Prune old data
@@ -228,12 +230,27 @@ def calculate_total_pledged(constants_data):
         logging.error(f"Error calculating total pledged: {e}")
         return 0
 
+def format_with_commas(number):
 
+    try:
+        # If it's a float, format to include commas and maintain decimals
+        if isinstance(number, float):
+            return f"{number:,.2f}"  # Adjust decimal places if needed
+        # If it's an integer, format with commas
+        elif isinstance(number, int):
+            return f"{number:,}"
+        else:
+            raise ValueError("Input must be an int or float.")
+    except Exception as e:
+        raise ValueError(f"Error formatting number: {e}")
+    
 def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
-                            blockchain_history_size_gb, blockHeight, testnet, unit):
+                            blockchain_history_size_gb, blockHeight, testnet, unit, total_circulation,):
     growth = track_pledged_space_growth(totPledged, False)
     chartGrowth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
+    digits = float(10**18)
     status = [
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Community Tools", "🪄 http://subspace.ifhya.com"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Growth PB/day", f'🌳 {chartGrowth}'),
@@ -244,6 +261,9 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
         ("History Size", f"📜 {blockchain_history_size_gb:.3f} GB"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Block Height", f"📏  #{blockHeight}" if blockHeight != "Unknown" else "Unavailable"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
+        ("Total Circulation", f"💰  {format_with_commas(total_circulation / digits)} AI3"),
+        
     ]
     if testnet:
         status.insert(0, ('👁️ Monitoring', 'Testnet'))
