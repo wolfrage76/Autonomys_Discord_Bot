@@ -5,6 +5,8 @@ import os
 import logging
 import sqlite3
 import time
+
+from decimal import Decimal
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 from query import SubstrateConstantsLibrary  # Adjust the import path if necessary
@@ -89,6 +91,94 @@ data_fetch_interval = 40  # How often to query RPC
 status_change_interval = 17  # Avoiding rate limiting
 
 constants_lib = SubstrateConstantsLibrary(nodeUrl)  # Initialize SubstrateConstantsLibrary
+
+
+def format_time_between_rewards(seconds):
+    """
+    Convert seconds into a human-readable string in the format M d h m.
+
+    Parameters:
+    - seconds (int): Time in seconds.
+
+    Returns:
+    - str: Formatted time string without leading empty fields.
+    """
+    # Time units
+    seconds_per_minute = 60
+    seconds_per_hour = 60 * seconds_per_minute
+    seconds_per_day = 24 * seconds_per_hour
+    seconds_per_month = 30 * seconds_per_day  # Approximate months as 30 days
+
+    # Calculate time components
+    months = seconds // seconds_per_month
+    seconds %= seconds_per_month
+    days = seconds // seconds_per_day
+    seconds %= seconds_per_day
+    hours = seconds // seconds_per_hour
+    seconds %= seconds_per_hour
+    minutes = seconds // seconds_per_minute
+
+    # Build the formatted time string
+    time_parts = []
+    if months > 0:
+        time_parts.append(f"{int(months)}M")
+    if days > 0:
+        time_parts.append(f"{int(days)}d")
+    if hours > 0:
+        time_parts.append(f"{int(hours)}h")
+    if minutes > 0:
+        time_parts.append(f"{int(minutes)}m")
+
+    return " ".join(time_parts)
+
+
+
+def estimate_autonomys_rewards_count(
+    network_space_pib,
+    daily_blocks=14400,
+    block_reward_ratio=1,
+    vote_reward_ratio=9,
+    pledged_space_tib=1
+):
+    """
+    Estimate the number of rewards per day, block rewards, vote rewards, and time between rewards for 1 TiB.
+
+    Parameters:
+    - network_space_pib (float): Total network space in PiB.
+    - daily_blocks (int): Total blocks produced daily.
+    - block_reward_ratio (int): Number of block rewards per block (default: 1).
+    - vote_reward_ratio (int): Number of vote rewards per block (default: 9).
+    - pledged_space_tib (float): Pledged space in TiB (default: 1 TiB).
+
+    Returns:
+    - dict: Rewards per day (total, block, vote) and time between rewards in human-readable format.
+    """
+    # Constants
+    tib_per_pib = Decimal(1024)  # 1 PiB = 1024 TiB
+    seconds_per_day = Decimal(86400)  # Number of seconds in a day
+    total_rewards_per_block = Decimal(block_reward_ratio + vote_reward_ratio)  # Total rewards per block
+
+    # Calculate proportion of network space
+    total_network_tib = Decimal(network_space_pib) * tib_per_pib
+    proportion_of_network = Decimal(pledged_space_tib) / total_network_tib
+
+    # Calculate the total number of rewards per day
+    total_rewards_per_day = Decimal(daily_blocks) * total_rewards_per_block * proportion_of_network
+
+    # Split rewards into block and vote rewards
+    block_rewards_per_day = Decimal(daily_blocks) * Decimal(block_reward_ratio) * proportion_of_network
+    vote_rewards_per_day = Decimal(daily_blocks) * Decimal(vote_reward_ratio) * proportion_of_network
+
+    # Calculate the time between rewards in seconds
+    time_between_rewards_seconds = seconds_per_day / total_rewards_per_day if total_rewards_per_day > 0 else None
+
+    return {
+        "total_rewards_per_day": round(float(total_rewards_per_day), 3),
+        "block_rewards_per_day": round(float(block_rewards_per_day), 3),
+        "vote_rewards_per_day": round(float(vote_rewards_per_day), 3),
+        "time_between_rewards": format_time_between_rewards(float(time_between_rewards_seconds))
+        if time_between_rewards_seconds else "0",
+    }
 
 
 
@@ -246,12 +336,15 @@ def format_with_commas(number):
     
 def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
                             blockchain_history_size_gb, blockHeight, testnet, unit, total_circulation,):
+    est_rewards = estimate_autonomys_rewards_count(totPledged,)
     growth = track_pledged_space_growth(totPledged, False)
     chartGrowth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
     digits = float(10**18)
     status = [
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Community Tools", "🪄 http://subspace.ifhya.com"),
+        (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
+        ('Est Rewards/TB', f"🏆 {est_rewards.get('total_rewards_per_day','0'):.3f}: {est_rewards.get('time_between_rewards', 'N/A')}"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ("Growth PB/day", f'🌳 {chartGrowth}'),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
