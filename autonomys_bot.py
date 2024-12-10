@@ -160,7 +160,7 @@ def estimate_autonomys_rewards_count(
 
     # Calculate proportion of network space
     total_network_tib = Decimal(network_space_pib) * tib_per_pib
-    proportion_of_network = Decimal(pledged_space_tib) / total_network_tib
+    proportion_of_network = ((Decimal(pledged_space_tib * Decimal(.99))) / total_network_tib)  
 
     # Calculate the total number of rewards per day
     total_rewards_per_day = Decimal(daily_blocks) * total_rewards_per_block * proportion_of_network
@@ -176,7 +176,7 @@ def estimate_autonomys_rewards_count(
         "total_rewards_per_day": round(float(total_rewards_per_day), 3),
         "block_rewards_per_day": round(float(block_rewards_per_day), 3),
         "vote_rewards_per_day": round(float(vote_rewards_per_day), 3),
-        "time_between_rewards": format_time_between_rewards(float(time_between_rewards_seconds))
+        "time_between_rewards": format_time_between_rewards(Decimal(time_between_rewards_seconds))
         if time_between_rewards_seconds else "0",
     }
 
@@ -342,7 +342,7 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
     digits = float(10**18)
     status = [
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
-        ("Community Tools", "🪄 http://subspace.ifhya.com"),
+        ("Community Tools", "🪄  https://ai3.farm/tools"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
         ('Est Wins/TB/Day', f"🏆 {est_rewards.get('total_rewards_per_day','0'):.3f}/day ({est_rewards.get('time_between_rewards', 'N/A')})"),
         (pledgeText, f"💾 {totPledged:.3f} PB {pledgeEnd}"),
