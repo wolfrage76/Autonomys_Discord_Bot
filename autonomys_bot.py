@@ -23,6 +23,9 @@ else:
 
 load_dotenv()
 
+
+tasks_started = False
+
 # Initialize SQLite database
 def initialize_database():
     conn = sqlite3.connect('pledged_history.db')  # Persistent storage on disk
@@ -82,6 +85,8 @@ if not TOKEN:
 intents = discord.Intents.default()
 intents.guilds = True  # Required to fetch guilds
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+
 
 vers = "Unknown"  # Global variable for version data from utility_run
 status_index = 0  # Index to keep track of current status in the rotation
@@ -362,13 +367,25 @@ def generate_status_options(pledgeText, pledgeEnd, totPledged, vers, acresvers,
         status.insert(0, ('👁️ Monitoring', 'Testnet'))
     return status
 
+
 @bot.event
 async def on_ready():
-    logging.info(f'Logged in as {bot.user}')
-    change_status.start()  # Start the status change task
-    #logging.info("Started change_status task.")
-    bot.loop.create_task(utility_run())  # Start utility_run in the background
-    #logging.info("Started utility_run task.")
+    global tasks_started
+
+    if not tasks_started:
+        logging.info(f'Logged in as {bot.user}')
+        
+        # Start the utility_run task
+        bot.loop.create_task(utility_run())
+        logging.info("Started utility_run task.")
+        
+        # Start the status change loop
+        change_status.start()
+        logging.info("Started change_status task.")
+        
+        tasks_started = True  # Set the flag to prevent restarting tasks
+    else:
+        logging.info("on_ready triggered again, but tasks are already running.")
 
 @tasks.loop(seconds=status_change_interval)
 async def change_status():
