@@ -3,21 +3,35 @@ import aiohttp
 import asyncio
 import os
 import logging
-import aiosqlite
 import gc
 import time
+
+from sqlalchemy import select, func
+from sqlalchemy.sql import delete
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Float, Integer
 
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 from substrateinterface import SubstrateInterface
+from contextlib import asynccontextmanager
 
 testnet = False # Monitor testnet or False for mainnet. 
+
+global db_lock
+db_lock = asyncio.Lock()
 
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv('AUTONOMYS_BOT_TOKEN')
 if not TOKEN:
     raise ValueError("Discord bot token is not set in environment variables.")
+
+# Load DB info
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in environment variables.")
 
 # Global settings
 
@@ -43,32 +57,64 @@ intents.message_content = False # Todo: Add Banner command for Admins
 intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Database initialization
+# SQLAlchemy setup
+# DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_size=5,  # Limit pool size
+    max_overflow=10,  # Allow up to 10 additional connections
+)
+async_session = async_sessionmaker(engine, expire_on_commit=False)
+Base = declarative_base()
+# SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+# Define the database model
+class PledgedHistory(Base):
+    __tablename__ = "pledged_history"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(Float, nullable=False, unique=True)
+    pledged_space = Column(Float, nullable=False)
+
+
 async def initialize_database():
-    async with aiosqlite.connect('pledged_history.db') as conn:
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS pledged_history (
-                timestamp REAL PRIMARY KEY,
-                pledged_space REAL
-            )
-        ''')
-        await conn.commit()
+    async with engine.begin() as conn:
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as e:
+            logging.error(f"Error initializing database: {e}")
+
 
 async def add_pledged_data(timestamp, pledged_space):
-    async with aiosqlite.connect('pledged_history.db') as conn:
-        await conn.execute(
-            'INSERT OR REPLACE INTO pledged_history (timestamp, pledged_space) VALUES (?, ?)',
-            (timestamp, pledged_space)
-        )
-        await conn.commit()
+    async with db_lock:  # Prevent concurrent writes
+        try:
+            async with get_async_session() as session:
+                new_entry = PledgedHistory(timestamp=timestamp, pledged_space=pledged_space)
+                session.add(new_entry)
+                await session.commit()
+        except Exception as e:
+            logging.error(f"Error inserting data: {e}")
 
-async def prune_old_data(retention_period_seconds=31536000):  # Default: 1 year
+
+async def prune_old_data(retention_period_seconds=2592000):
     current_time = time.time()
     cutoff_time = current_time - retention_period_seconds
-    async with aiosqlite.connect('pledged_history.db') as conn:
-        await conn.execute('DELETE FROM pledged_history WHERE timestamp < ?', (cutoff_time,))
-        await conn.commit()
+    async with db_lock:  # Prevent concurrent modifications
+        async with get_async_session() as session:
+            try:
+                stmt = delete(PledgedHistory).where(PledgedHistory.timestamp < cutoff_time)
+                await session.execute(stmt)
+            except Exception as e:
+                logging.error(f"Error pruning old data: {e}")
 
+
+@asynccontextmanager
+async def get_async_session():
+    """Ensure async session works with the current event loop."""
+    async with async_session() as session:
+        yield session
+        
+        
 # Fetch constants and block height together
 async def fetch_constants_and_height():
     #logging.info('In fetch constants and height')
@@ -103,6 +149,7 @@ async def utility_run():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                # Fetch constants and update bot state
                 constants, block_height = await fetch_constants_and_height()
                 total_space_pledged = constants.get("TotalSpacePledged")
                 total_circulation = constants.get("CreditSupply")
@@ -113,18 +160,19 @@ async def utility_run():
 
                 bot_state.version, acresvers = await fetch_version_data(session)
 
+                # Generate status options asynchronously
                 bot_state.status_options = await generate_status_options(
                     "Total Pledged", bot_state.tot_pledged, bot_state.version, acresvers,
                     blockchain_history_size_gb, block_height, testnet, total_circulation
                 )
 
-                await prune_old_data()
-                await asyncio.sleep(data_fetch_interval)
-                
+                # Prune old data in the background
+                asyncio.create_task(prune_old_data())
             except Exception as e:
                 logging.error(f"Error in utility_run: {e}")
 
-            
+            await asyncio.sleep(data_fetch_interval)
+
 
 async def fetch_version_data(session):
     try:
@@ -139,8 +187,8 @@ async def fetch_version_data(session):
 async def generate_status_options(pledge_text, tot_pledged, vers, acresvers,
                                 blockchain_history_size_gb, block_height, testnet, total_circulation):
     est_rewards = estimate_autonomys_rewards_count(tot_pledged)
-    growth = await track_pledged_space_growth(tot_pledged, False)
-    chart_growth = f"1: {growth.get('1d', 0):.2f} |3: {growth.get('3d', 0):.2f} |7: {growth.get('7d', 0):.2f}"
+    growth = await track_pledged_space_growth(bot_state.tot_pledged)
+    chart_growth = f"1: {growth.get('1d', 0):.1f} |3: {growth.get('3d', 0):.1f} |7: {growth.get('7d', 0):.1f}"
     chart_growth2 = f"90: {int(growth.get('90d', 0))} |180: {int(growth.get('180d', 0))} |365: {int(growth.get('365d', 0))}"
     digits = float(10**18)
 
@@ -166,35 +214,35 @@ async def generate_status_options(pledge_text, tot_pledged, vers, acresvers,
         status.insert(0, ('👁️ Monitoring', 'Testnet'))
     return status
 
-async def track_pledged_space_growth(tot_pledged, display_in_tb=True):
+
+async def track_pledged_space_growth(tot_pledged):
     current_time = time.time()
     await add_pledged_data(current_time, tot_pledged)
-    
-    day = 24 * 3600
+
     periods = {
-        '1d': day,
-        '3d': 3 * day,
-        '7d': 7 * day,
-        '90d': 90 * day,
-        '180d': 180 * day,
-        '365d': 365 * day,
+        '1d': 24 * 3600,
+        '3d': 3 * 24 * 3600,
+        '7d': 7 * 24 * 3600,
     }
 
     growth = {}
-    async with aiosqlite.connect('pledged_history.db') as conn:
-        for period_name, period_seconds in periods.items():
-            cutoff_time = current_time - period_seconds
-            async with conn.execute(
-                'SELECT MIN(pledged_space), MAX(pledged_space) FROM pledged_history WHERE timestamp >= ?',
-                (cutoff_time,)
-            ) as cursor:
-                row = await cursor.fetchone()
-                if row and row[0] is not None and row[1] is not None:
-                    growth_value = (row[1] - row[0]) * (1000 if display_in_tb else 1)
-                    growth[period_name] = round(growth_value, 3)
-                else:
+    async with db_lock:  # Ensure safe reads
+        async with get_async_session() as session:
+            for period_name, period_seconds in periods.items():
+                cutoff_time = current_time - period_seconds
+                try:
+                    stmt = select(
+                        func.min(PledgedHistory.pledged_space),
+                        func.max(PledgedHistory.pledged_space)
+                    ).where(PledgedHistory.timestamp >= cutoff_time)
+                    result = await session.execute(stmt)
+                    min_val, max_val = result.one_or_none()
+                    growth[period_name] = round(max_val - min_val, 3) if min_val is not None and max_val is not None else 0.0
+                except Exception as e:
+                    logging.error(f"Error calculating growth for {period_name}: {e}")
                     growth[period_name] = 0.0
     return growth
+
 
 def format_time_between_rewards(seconds):
     """
@@ -332,7 +380,7 @@ async def on_ready():
             )
         
         logging.info(f"Logged in as {bot.user}")
-
+        await initialize_database()
         bot.loop.create_task(utility_run())
         change_status.start()
 
@@ -349,8 +397,4 @@ async def on_ready():
                 logging.error(f"Error updating nickname in {guild.name}: {e}")
         await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.custom, name='custom', state='Starting Up...'))
         
-        
-        
-
-asyncio.run(initialize_database())
 bot.run(TOKEN)
